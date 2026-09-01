@@ -3,6 +3,8 @@
 *.blend2
 # Blender temp
 *.blend@
+# WorkBuddy local data
+.workbuddy/
 # OS
 Thumbs.db
 .DS_Store
