@@ -2,7 +2,7 @@
 
 Blender 5.2 插件：在大纲（Outliner）**Blender File 显示模式**下，选中数据块后右键一键 **"Select References"**，精确选中**直接引用**该数据块的数据块或对象，并在大纲中高亮对应行。
 
-[![Blender](https://img.shields.io/badge/Blender-5.2-orange)](https://www.blender.org/) [![Version](https://img.shields.io/badge/version-1.3.0-blue)](#版本历史)
+[![Blender](https://img.shields.io/badge/Blender-5.2-orange)](https://www.blender.org/) [![Version](https://img.shields.io/badge/version-1.3.0-blue)](#版本历史) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 功能
 
@@ -96,4 +96,4 @@ python tests/run_socket_test.py
 
 ## 许可证
 
-未设置（仓库作者可按需添加，如 MIT）。
+[MIT](LICENSE) — 可自由使用、修改、再分发； fork 时请保留 LICENSE 文件与版权声明。
