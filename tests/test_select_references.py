@@ -671,7 +671,8 @@ else:
         check("端到端: mat_a → 大纲行选中即 Mesh 数据块", [mesh_shared.name],
               _read_outliner_sel())
         check("端到端: mat_a report 含已高亮信息", True,
-              any("已在大纲高亮" in m and mesh_shared.name in m
+              any(sr._t("highlighted").split("{}")[0] in m
+                  and mesh_shared.name in m
                   for _, m in _reports),
               note="captured={}".format([m for _, m in _reports]))
 
@@ -704,7 +705,7 @@ else:
         check("端到端: img → 大纲行选中即三个引用数据块", _img_rows,
               _read_outliner_sel())
         check("端到端: img report 含已高亮信息", True,
-              any("已在大纲高亮" in m
+              any(sr._t("highlighted").split("{}")[0] in m
                   and all(n in m for n in _img_rows) for _, m in _reports),
               note="captured={}".format([m for _, m in _reports]))
         check("端到端: img → World 仅 INFO 提示", True,
@@ -714,6 +715,15 @@ else:
     except Exception as exc:
         _errors.append("端到端异常: {}\n{}".format(exc, traceback.format_exc()))
     _restore_user_state()
+
+# ---- v1.3.0 双语机制断言（不强依赖会话语言，验证机制本身）------------------
+check("i18n: _lang 与偏好语言一致", True,
+      (bpy.context.preferences.view.language or "").startswith("zh")
+      == (sr._lang() == "zh"))
+check("i18n: 中英文案表键集合一致", set(sr._STRINGS["zh"]),
+      set(sr._STRINGS["en"]))
+check("i18n: menu_label 中英不同词", False,
+      sr._STRINGS["zh"]["menu_label"] == sr._STRINGS["en"]["menu_label"])
 
 # ============================================================================
 # 8. 清理夹具 → T15 残留验证 → 重注册（供会话内 GUI 冒烟）→ 恢复用户状态

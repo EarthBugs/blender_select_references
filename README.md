@@ -2,9 +2,11 @@
 
 Blender 5.2 插件：在大纲（Outliner）**Blender File 显示模式**下，选中数据块后右键一键 **"Select References"**，精确选中**直接引用**该数据块的数据块或对象，并在大纲中高亮对应行。
 
-[![Blender](https://img.shields.io/badge/Blender-5.2-orange)](https://www.blender.org/) [![Version](https://img.shields.io/badge/version-1.2.0-blue)](#版本历史)
+[![Blender](https://img.shields.io/badge/Blender-5.2-orange)](https://www.blender.org/) [![Version](https://img.shields.io/badge/version-1.3.0-blue)](#版本历史)
 
 ## 功能
+
+- **界面语言跟随 Blender**：菜单、提示与报告文案自动跟随 `Preferences > Interface > Language`，支持简体中文/英文两种（zh* 开头一律中文，其余英文回退）。菜单与报告实时切换；悬停提示（tooltip）在插件启用时按当前语言定型。
 
 ### 核心语义：沿引用链向上游走一跳
 
@@ -75,6 +77,7 @@ python tests/run_socket_test.py
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 1.3.0 | 2026-09-03 | 界面文案跟随 Blender 语言（中/英双语，运行时实时切换） |
 | 1.2.0 | 2026-09-02 | 语义重构：直接引用者一跳选择 + 大纲数据块行高亮（替代 v1 的"终端对象"语义） |
 | 1.1.0 | 2026-09-01 | 注册幂等化（修复右键菜单重复）；新增 Curve / Curves 支持 |
 | 1.0.0 | 2026-09-01 | 首版：六类型支持，修复 Image 扫描误报、hide_get 传参 |

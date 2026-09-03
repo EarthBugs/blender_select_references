@@ -55,7 +55,7 @@ reload+register 导致的右键菜单项重复（详见 docs/architecture_plan.m
 bl_info = {
     "name": "Select References",
     "author": "Select References Contributors",
-    "version": (1, 2, 0),
+    "version": (1, 3, 0),
     "blender": (5, 2, 0),
     "location": "Outliner > Blender File 模式 > 右键菜单",
     "description": "在大纲 Blender File 模式下，选中直接引用了所选数据块的对象或数据块（一跳）",
@@ -93,11 +93,93 @@ _SUPPORTED_FAMILY_ROOTS = (Camera, Image, Light, Material, Mesh, GeometryNodeTre
 # 着色器树内图像纹理节点的 bl_idname（材质 / World 节点树中的图像引用点）
 _IMAGE_NODE_IDS = ("ShaderNodeTexImage", "ShaderNodeTexEnvironment")
 
-# classify_selection 拒绝原因码 → 中文提示（execute 汇报用，poll 不产生文案）
-_REJECT_REASON_TEXT = {
-    "no selection": "未选中任何数据块",
-    "unsupported/mixed": "选中项包含不支持的数据块类型（含 Object）",
-    "mixed": "选中项类型混杂",
+# ============================================================================
+# 双语文案（v1.3.0）：跟随 Blender 界面语言，仅中英两种
+# ============================================================================
+# - 运行时经 _t(key) 取词：每次调用实时读 preferences.view.language，
+#   菜单文案与 report 无需重新启用插件即可跟随语言切换；
+# - bl_label / bl_description 只能在 register_class 前定型（register 时取词，
+#   之后改语言需重新启用插件才更新 tooltip——菜单与 report 不受影响）；
+# - 语言判定：zh 开头（zh_CN/zh_TW/zh_HANS…）一律中文，其余（含偏好读取失败）
+#   一律英文回退。
+_STRINGS = {
+    "zh": {
+        "menu_label": "选中引用",
+        "description": "选中直接引用了所选数据块的对象或数据块（一跳语义；支持"
+                       " Camera / Image / Light / Material / Mesh /"
+                       " GeometryNodeTree / Curve / Curves）",
+        "reject_prefix": "Select References：{}，已取消",
+        "reason_no_selection": "未选中任何数据块",
+        "reason_unsupported": "选中项包含不支持的数据块类型（含 Object）",
+        "reason_mixed": "选中项类型混杂",
+        "scan_error": "扫描数据块 '{}' 时出错，已跳过：{}",
+        "world_info": "World '{}' 也引用了图像 '{}'（World 不支持选中，仅提示）",
+        "scene_camera_info": "Scene '{}' 的场景相机是 '{}'（Scene 不支持选中，仅提示）",
+        "no_results": "没有找到直接引用所选数据块的对象或数据块",
+        "selected_objects": "已选中 {} 个引用对象",
+        "hidden_skipped": "{} 个对象因被隐藏而跳过：{}",
+        "excluded_skipped": "{} 个对象位于被排除的集合中，无法选中：{}",
+        "highlighted": "已在大纲高亮 {} 个引用数据块：{}",
+        "extras": "附带高亮了 {} 个同名相关数据块：{}",
+        "rows_failed": "以下引用数据块无法在大纲高亮（无 LIBRARIES 模式大纲区域"
+                       "或机制不可用）：{}",
+        "orphans": "以下引用数据块为无用户的孤儿数据，不入大纲树：{}",
+        "execute_error": "Select References 执行失败：{}",
+        "join_sep": "、",
+    },
+    "en": {
+        "menu_label": "Select References",
+        "description": "Select objects or datablocks that directly reference the"
+                       " selection (one-hop semantics; supports Camera / Image /"
+                       " Light / Material / Mesh / GeometryNodeTree / Curve /"
+                       " Curves)",
+        "reject_prefix": "Select References: {}, cancelled",
+        "reason_no_selection": "nothing is selected",
+        "reason_unsupported": "selection contains unsupported datablock types"
+                              " (including Object)",
+        "reason_mixed": "selection mixes datablock types",
+        "scan_error": "Error scanning '{}', skipped: {}",
+        "world_info": "World '{}' also references image '{}' (Worlds cannot be"
+                      " selected; info only)",
+        "scene_camera_info": "Scene '{}' uses '{}' as its scene camera (Scenes"
+                             " cannot be selected; info only)",
+        "no_results": "No objects or datablocks directly reference the selection",
+        "selected_objects": "Selected {} referencing object(s)",
+        "hidden_skipped": "{} object(s) skipped because hidden: {}",
+        "excluded_skipped": "{} object(s) are in excluded collections and cannot"
+                            " be selected: {}",
+        "highlighted": "Highlighted {} referencing datablock(s) in the Outliner: {}",
+        "extras": "Additionally highlighted {} similarly named datablock(s): {}",
+        "rows_failed": "Could not highlight in the Outliner (no LIBRARIES-mode"
+                       " Outliner area or mechanism unavailable): {}",
+        "orphans": "These referencing datablocks are orphaned (zero users) and do"
+                   " not appear in the Outliner: {}",
+        "execute_error": "Select References failed: {}",
+        "join_sep": ", ",
+    },
+}
+
+
+def _lang() -> str:
+    """跟随 Blender 界面语言：zh 开头 → "zh"，其余/读取失败 → "en"。"""
+    try:
+        lang = bpy.context.preferences.view.language or ""
+    except Exception:
+        lang = ""
+    return "zh" if lang.startswith("zh") else "en"
+
+
+def _t(key: str) -> str:
+    """取当前语言文案；未知 key（理论上不会发生）回退英文表。"""
+    table = _STRINGS[_lang()]
+    return table.get(key, _STRINGS["en"].get(key, key))
+
+
+# classify_selection 拒绝原因码 → 文案 key（execute 汇报用，poll 不产生文案）
+_REJECT_REASON_KEY = {
+    "no selection": "reason_no_selection",
+    "unsupported/mixed": "reason_unsupported",
+    "mixed": "reason_mixed",
 }
 
 # 大纲行高亮机制：数据块家族 → SpaceOutliner.filter_id_type 枚举值
@@ -658,8 +740,8 @@ class SELECT_REFERENCING_OT_select_references(bpy.types.Operator):
             ids = getattr(context, "selected_ids", [])
             ok, reason, family, typed_ids = classify_selection(ids)
             if not ok:
-                self.report({'WARNING'}, "Select References：{}，已取消".format(
-                    _REJECT_REASON_TEXT.get(reason, reason)))
+                self.report({'WARNING'}, _t("reject_prefix").format(
+                    _t(_REJECT_REASON_KEY.get(reason, reason))))
                 return {'CANCELLED'}
 
             # 逐 ID 扫描直接引用者；单 ID 异常记录跳过，不中断整体
@@ -671,7 +753,7 @@ class SELECT_REFERENCING_OT_select_references(bpy.types.Operator):
                     objects |= r["objects"]
                     id_refs |= r["ids"]
                 except Exception as exc:
-                    self.report({'WARNING'}, "扫描数据块 '{}' 时出错，已跳过：{}".format(
+                    self.report({'WARNING'}, _t("scan_error").format(
                         id_obj.name, exc))
 
             # World / Scene 引用者：按设计仅 INFO 提示，不进结果集
@@ -679,7 +761,7 @@ class SELECT_REFERENCING_OT_select_references(bpy.types.Operator):
                 for img in typed_ids:
                     try:
                         for world in _worlds_using_image(img):
-                            self.report({'INFO'}, "World '{}' 也引用了图像 '{}'（World 不支持选中，仅提示）".format(
+                            self.report({'INFO'}, _t("world_info").format(
                                 world.name, img.name))
                     except Exception:
                         pass
@@ -687,13 +769,13 @@ class SELECT_REFERENCING_OT_select_references(bpy.types.Operator):
                 for cam in typed_ids:
                     try:
                         for scene in _scenes_using_camera(cam):
-                            self.report({'INFO'}, "Scene '{}' 的场景相机是 '{}'（Scene 不支持选中，仅提示）".format(
+                            self.report({'INFO'}, _t("scene_camera_info").format(
                                 scene.name, cam.name))
                     except Exception:
                         pass
 
             if not objects and not id_refs:
-                self.report({'INFO'}, "没有找到直接引用所选数据块的对象或数据块")
+                self.report({'INFO'}, _t("no_results"))
                 return {'FINISHED'}
 
             # Object 引用者：视口 + 大纲 Objects 行选中（v1 逻辑与防护不变）；
@@ -701,13 +783,13 @@ class SELECT_REFERENCING_OT_select_references(bpy.types.Operator):
             if objects:
                 selected, hidden, excluded = execute_selection(context, objects)
                 if selected:
-                    self.report({'INFO'}, "已选中 {} 个引用对象".format(len(selected)))
+                    self.report({'INFO'}, _t("selected_objects").format(len(selected)))
                 if hidden:
-                    self.report({'WARNING'}, "{} 个对象因被隐藏而跳过：{}".format(
-                        len(hidden), ", ".join(o.name for o in hidden)))
+                    self.report({'WARNING'}, _t("hidden_skipped").format(
+                        len(hidden), _t("join_sep").join(o.name for o in hidden)))
                 if excluded:
-                    self.report({'WARNING'}, "{} 个对象位于被排除的集合中，无法选中：{}".format(
-                        len(excluded), ", ".join(o.name for o in excluded)))
+                    self.report({'WARNING'}, _t("excluded_skipped").format(
+                        len(excluded), _t("join_sep").join(o.name for o in excluded)))
 
             # 非 Object 数据块引用者：大纲 Blender File 模式行高亮（多目标
             # 逐名过滤累加，probe13 实测可行）；无法高亮的回退 INFO 逐个列出
@@ -722,22 +804,24 @@ class SELECT_REFERENCING_OT_select_references(bpy.types.Operator):
                     rows_ok, rows_failed, extras = select_datablock_rows(
                         context, set(present))
                     if rows_ok:
-                        self.report({'INFO'}, "已在大纲高亮 {} 个引用数据块：{}".format(
-                            len(rows_ok), "、".join(_id_label(i) for i in rows_ok)))
+                        self.report({'INFO'}, _t("highlighted").format(
+                            len(rows_ok), _t("join_sep").join(
+                                _id_label(i) for i in rows_ok)))
                     if extras:
-                        self.report({'INFO'}, "附带高亮了 {} 个同名相关数据块：{}".format(
-                            len(extras), "、".join(_id_label(i) for i in extras)))
+                        self.report({'INFO'}, _t("extras").format(
+                            len(extras), _t("join_sep").join(
+                                _id_label(i) for i in extras)))
                     if rows_failed:
-                        self.report({'INFO'}, "以下引用数据块无法在大纲高亮（无 LIBRARIES 模式大纲区域或机制不可用）：{}".format(
-                            "、".join(_id_label(i) for i in rows_failed)))
+                        self.report({'INFO'}, _t("rows_failed").format(
+                            _t("join_sep").join(_id_label(i) for i in rows_failed)))
                 if orphans:
-                    self.report({'INFO'}, "以下引用数据块为无用户的孤儿数据，不入大纲树：{}".format(
-                        "、".join(_id_label(i) for i in orphans)))
+                    self.report({'INFO'}, _t("orphans").format(
+                        _t("join_sep").join(_id_label(i) for i in orphans)))
             return {'FINISHED'}
         except Exception as exc:
             # 兜底：不产生半选状态（execute_selection 先全清再逐个选中，
             # 中断时最多"少选"，不误选）
-            self.report({'ERROR'}, "Select References 执行失败：{}".format(exc))
+            self.report({'ERROR'}, _t("execute_error").format(exc))
             return {'CANCELLED'}
 
 
@@ -754,7 +838,7 @@ def _draw_menu(self, context):
     """
     self.layout.operator(
         SELECT_REFERENCING_OT_select_references.bl_idname,
-        text="Select References",
+        text=_t("menu_label"),
     )
 
 
@@ -801,9 +885,14 @@ def register():
         except Exception:
             pass
     _APPENDED_DRAW_FNS.clear()
-    # ③ 注册 Operator（同 py 类对象重复注册抛 ValueError → 定点防御）
+    # ③ 注册 Operator（同 py 类对象重复注册抛 ValueError → 定点防御）。
+    #    bl_label / bl_description 在 register_class 前按当前语言定型（tooltip
+    #    静态；菜单与 report 经 _t 运行时取词，不受此限制）
+    _op_cls = SELECT_REFERENCING_OT_select_references
+    _op_cls.bl_label = _t("menu_label")
+    _op_cls.bl_description = _t("description")
     try:
-        bpy.utils.register_class(SELECT_REFERENCING_OT_select_references)
+        bpy.utils.register_class(_op_cls)
     except ValueError:
         pass
     # ④ append 并记账
